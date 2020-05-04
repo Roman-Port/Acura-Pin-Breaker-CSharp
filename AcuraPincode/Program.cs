@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Speech.Recognition;
 using System.Text;
 using System.Threading;
@@ -15,15 +16,27 @@ namespace AcuraPincode
         static void Main(string[] args)
         {
             Run();
+            //RunTest();
         }
 
         public static int pinIndex;
         public static string[] codes;
+        public static HttpListener listener;
+
+        static void RunTest()
+        {
+            Init();
+            Console.ReadLine();
+            //ResponseRecordTools.RecordResponse($"Session\\attempt_{pinIndex}", 5000);
+        }
 
         static void Init()
         {
             //Load sound files
             PinVoiceTools.Init();
+
+            //Set servo
+            ServoTool.Init();
 
             //Load pin codes
             codes = File.ReadAllLines("Assets\\codes.txt");
@@ -33,6 +46,43 @@ namespace AcuraPincode
                 pinIndex = int.Parse(File.ReadAllText("Session\\location.txt"));
             else
                 pinIndex = 0;
+
+            //Start HTTP server
+            listener = new HttpListener();
+            listener.Prefixes.Add("http://10.0.1.12:80/");
+            listener.Start();
+            listener.BeginGetContext(OnGetRequst, null);
+        }
+
+        public static void OnGetRequst(IAsyncResult ar)
+        {
+            //Get ctx
+            var ctx = listener.EndGetContext(ar);
+            HttpListenerRequest req = ctx.Request;
+            HttpListenerResponse resp = ctx.Response;
+
+            //Handle
+            if(req.Url.AbsolutePath == "/audio")
+            {
+                resp.ContentType = "audio/wav";
+                using (FileStream fs = new FileStream($"Session\\attempt_{req.QueryString["index"]}.wav", FileMode.Open, FileAccess.Read))
+                    fs.CopyTo(resp.OutputStream);
+            }
+            if (req.Url.AbsolutePath == "/waveform")
+            {
+                resp.ContentType = "image/png";
+                using (FileStream fs = new FileStream($"Session\\attempt_{req.QueryString["index"]}.png", FileMode.Open, FileAccess.Read))
+                    fs.CopyTo(resp.OutputStream);
+            }
+            if(req.Url.AbsolutePath == "/")
+            {
+                HttpStatsPage.CreateTable(resp.OutputStream);
+            }
+
+            resp.Close();
+
+            //Run next
+            listener.BeginGetContext(OnGetRequst, null);
         }
 
         static void Run()
@@ -53,7 +103,7 @@ namespace AcuraPincode
             ServoTool.PressButton();
 
             //Delay a small amount
-            Thread.Sleep(100);
+            Thread.Sleep(1000);
 
             //Run attempts
             RunAttempt();
@@ -73,7 +123,7 @@ namespace AcuraPincode
             ServoTool.PressButton();
 
             //Delay
-            Thread.Sleep(200);
+            Thread.Sleep(600);
 
             //Speak code
             PinVoiceTools.PlayPinCode(codes[pinIndex]);
@@ -82,7 +132,7 @@ namespace AcuraPincode
             Thread.Sleep(1000);
 
             //Begin recording
-            ResponseRecordTools.RecordResponse($"Session\\attempt_{pinIndex}.wav", 3000);
+            ResponseRecordTools.RecordResponse($"Session\\attempt_{pinIndex}", 5000);
 
             //Add to current value and save
             pinIndex++;

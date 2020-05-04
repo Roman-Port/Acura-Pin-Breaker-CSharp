@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.Ports;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -9,17 +10,21 @@ namespace AcuraPincode
 {
     public class ServoTool
     {
-        public static void MoveServo(int pos)
+        public static SerialPort io;
+
+        public static void Init()
         {
-            //PLACEHOLDER
-            Console.WriteLine("PLACEHOLDER; Servo moved to " + pos);
+            io = new SerialPort();
+            io.PortName = "COM3";
+            io.BaudRate = 9600;
+            io.Open();
         }
 
         public static void PressButton(int time = 500)
         {
-            MoveServo(10);
+            io.Write("P");
             Thread.Sleep(time);
-            MoveServo(0);
+            io.Write("O");
         }
     }
 }

@@ -12,13 +12,13 @@ namespace AcuraPincode
     {
         private static SoundPlayer[] sounds;
 
-        public const int NUMBER_DELAY = 150;
+        public const int NUMBER_DELAY = 0;
 
         public static void Init()
         {
             sounds = new SoundPlayer[10];
             for (int i = 0; i < sounds.Length; i++) {
-                sounds[i] = new SoundPlayer($"Assets\\audio\\{i}.wav");
+                sounds[i] = new SoundPlayer($"Assets\\audio_old\\{i}.wav");
                 sounds[i].Load();
             }
         }

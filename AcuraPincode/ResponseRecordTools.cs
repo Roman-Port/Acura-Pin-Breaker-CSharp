@@ -1,4 +1,6 @@
 ﻿using NAudio.Wave;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,9 +17,17 @@ namespace AcuraPincode
         public const byte BITS_PER_SAMPLE = 16;
         public const int CHANNELS = 1;
 
+        public const int PIXELS_PER_SECOND = 10;
+        public const int IMG_HEIGHT = 100;
+        public const int IMG_RES = 256;
+
         public static void RecordResponse(string filename, int time)
         {
-            using(FileStream fs = new FileStream(filename, FileMode.Create))
+            //Create peaks buffer
+            List<short> peaks = new List<short>();
+
+            //Record audio
+            using (FileStream fs = new FileStream(filename + ".wav", FileMode.Create))
             {
                 //Allocate 44 bytes at the beginning for use later
                 byte[] buffer = new byte[44];
@@ -28,7 +38,23 @@ namespace AcuraPincode
                 waveSource.WaveFormat = new WaveFormat(SAMPLE_RATE, CHANNELS);
                 waveSource.DataAvailable += new EventHandler<WaveInEventArgs>((object sender, WaveInEventArgs e) =>
                 {
+                    //Write to buffer
                     fs.Write(e.Buffer, 0, e.BytesRecorded);
+
+                    //Get peaks
+                    short avg = 0;
+                    int pos = 0;
+                    for(int i = 0; i<e.BytesRecorded; i+= 2)
+                    {
+                        avg = Math.Max(BitConverter.ToInt16(e.Buffer, i), avg);
+                        pos++;
+                        if(pos > IMG_RES)
+                        {
+                            pos = 0;
+                            peaks.Add(avg);
+                            avg = 0;
+                        }
+                    }
                 });
                 waveSource.StartRecording();
                 Thread.Sleep(time);
@@ -50,6 +76,23 @@ namespace AcuraPincode
                 WriteUnsignedInt(buffer, 40, (uint)fs.Length - 44);
                 fs.Position = 0;
                 fs.Write(buffer, 0, 44);
+            }
+
+            //Create waveform
+            using (Image<Rgba32> img = new Image<Rgba32>(peaks.Count, IMG_HEIGHT))
+            {
+                for (int i = 0; i < peaks.Count; i += 1)
+                {
+                    int len = peaks[i] / (ushort.MaxValue / (IMG_HEIGHT / 2));
+                    for (int y = 0; y < len; y++)
+                    {
+                        img[i, y + (IMG_HEIGHT / 2)] = new Rgba32(1, 1, 1);
+                        img[i, (IMG_HEIGHT / 2) - y] = new Rgba32(1, 1, 1);
+                    }
+                }
+
+                using (FileStream fs = new FileStream(filename + ".png", FileMode.Create))
+                    img.SaveAsPng(fs);
             }
         }
 
